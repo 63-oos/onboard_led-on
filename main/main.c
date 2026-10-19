@@ -13,13 +13,54 @@
 #include "driver/usb_serial_jtag_vfs.h"
 
 
-#define LED_GPIO GPIO_NUM_8
-#define Led_Active_Low 0
+#define LED_GPIO            GPIO_NUM_8
+#define Led_Active_Low      0
 
-void led_set(bool on)
+//Function declaration
+static void console_init(void);
+static void led_init(void);
+static void led_set(bool);
+
+
+
+void app_main()
 {
-    int level = Led_Active_Low ? !on : on;
-    gpio_set_level(LED_GPIO,level);
+    console_init();
+    led_init();
+
+    printf("Ready : Type on or off and press enter...\n");
+
+    char line[32];
+    while(1)
+    {
+        if(fgets(line,sizeof(line),stdin)!=NULL){
+            line[strcspn(line,"\r\n")] = '\0';
+            if(strcmp(line,"on")==0){
+                led_set(false); 
+            }
+            else if(strcmp(line,"off")==0){
+                led_set(true);
+            }
+            else
+            {
+                printf("%s try on or off: \n",line);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+static void led_init(void)
+{
+    gpio_config_t led_config = {
+        .pin_bit_mask = (1<<LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&led_config);
+    led_set(false);
 }
 
 static void console_init(void)
@@ -33,42 +74,12 @@ static void console_init(void)
 
 }
 
-void app_main()
+static void led_set(bool on)
 {
-    console_init();
-    gpio_config_t led_config = {
-        .pin_bit_mask = (1<<LED_GPIO),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-    gpio_config(&led_config);
-    led_set(false);
-
-    printf("Ready : Type on or off and press enter...\n");
-
-    char line[32];
-    while(1)
-    {
-        if(fgets(line,sizeof(line),stdin)!=NULL){
-            line[strcspn(line,"\r\n")] = '\0';
-            if(strcmp(line,"on")==0){
-                led_set(false);
-                printf("LED->ON\n");
-            }
-            else if(strcmp(line,"off")==0){
-                led_set(true);
-                printf("LED->OFF\n");
-            }
-            else
-            {
-                printf("%s try on or off: \n",line);
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-   /*gpio_set_direction(LED_GPIO,GPIO_MODE_OUTPUT);
-   gpio_set_level(LED_GPIO,0);*/
+    int level = Led_Active_Low ? !on : on;
+    gpio_set_level(LED_GPIO,level);
+    if(level == 1)
+        printf("LED->OFF\n");
+    else
+        printf("LED->ON\n");
 }
