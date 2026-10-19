@@ -20,6 +20,7 @@
 static void console_init(void);
 static void led_init(void);
 static void led_set(bool);
+static void handle_command(const char*);
 
 
 
@@ -31,22 +32,35 @@ void app_main()
     printf("Ready : Type on or off and press enter...\n");
 
     char line[32];
+    int idx = 0;
     while(1)
     {
-        if(fgets(line,sizeof(line),stdin)!=NULL){
-            line[strcspn(line,"\r\n")] = '\0';
-            if(strcmp(line,"on")==0){
-                led_set(false); 
-            }
-            else if(strcmp(line,"off")==0){
-                led_set(true);
-            }
-            else
+        int c = getchar();
+        if(c == EOF)
+        {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        if(c == '\r'||c == '\n')
+        {
+            line[idx] = '\0';
+            handle_command(line);
+            idx = 0;
+        }
+        else if (c == '\b' || c == 127)//backspace/delete
+        {
+            if(idx>0)
             {
-                printf("%s try on or off: \n",line);
+                idx--;
+                printf("\b \b");//move back, erase ,move back again
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        else if (idx < (int)sizeof(line) - 1) 
+        {
+            line[idx++] = (char)c;
+            putchar(c); // <-- this is the actual echo
+        }
     }
 }
 
@@ -72,6 +86,23 @@ static void console_init(void)
     usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
     usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
 
+    // No buffering, so every putchar()/getchar() takes effect immediately
+    // instead of waiting in a buffer -- required for real-time echo.
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+}
+
+static void handle_command(const char* line)
+{
+    if(strcmp(line,"on")==0)
+        led_set(false);
+    else if(strcmp(line,"off")==0)
+        led_set(true);
+    else if(strlen(line)>0)
+        printf("unknown command : '%s' (try on or off)\n",line);
+    else
+        putchar('\n');
 }
 
 static void led_set(bool on)
@@ -79,7 +110,7 @@ static void led_set(bool on)
     int level = Led_Active_Low ? !on : on;
     gpio_set_level(LED_GPIO,level);
     if(level == 1)
-        printf("LED->OFF\n");
+        printf("\nLED->OFF\n");
     else
-        printf("LED->ON\n");
+        printf("\nLED->ON\n");
 }
