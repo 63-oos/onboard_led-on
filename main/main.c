@@ -11,7 +11,7 @@
 
 #define LED_GPIO        GPIO_NUM_8 //onboard led 
 #define BUTTON_GPIO     GPIO_NUM_9 //onboard boot button
-#define Led_active_low  0
+#define Led_Active_Low  0
 
 //Function Declarations
 static void led_init(void);
@@ -79,7 +79,7 @@ static void handle_button(void)
 
 static void led_set(bool on)
 {
-    int level = Led_active_low? !on: on;
+    int level = Led_Active_Low? !on : on;
     gpio_set_level(LED_GPIO,level);
     if(level == 1)
         printf("LED->OFF\n");
