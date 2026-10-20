@@ -1,7 +1,7 @@
 /*
  * on board led testing with 
  * controlling the led using Button and user input
- 
+ * adding interrupt to the button
 */
 
 #include<stdio.h>
@@ -18,6 +18,8 @@
 #define BUTTON_GPIO     GPIO_NUM_9 //onboard boot button
 #define Led_Active_Low  0
 
+static QueueHandle_t button_evt_queue;
+
 //Function Declarations
 static void console_init(void);
 static void led_init(void);
@@ -25,6 +27,13 @@ static void led_set(bool);
 static void button_init(void);
 static void handle_button(void *pv);
 static void handle_command(const char*);
+
+static void IRAM_ATTR button_isr_handler(void *arg)
+{
+    uint32_t gpio_num = (uint32_t)arg;
+    xQueueSendFromISR(button_evt_queue,&gpio_num,NULL);
+}
+
 
 void app_main()
 {
@@ -75,7 +84,7 @@ static void led_init(void)
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
+        .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&led_config);
     led_set(true);
@@ -89,26 +98,35 @@ static void button_init(void)
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
+        .intr_type = GPIO_INTR_NEGEDGE,
     };
     gpio_config(&button_config);
+
+    button_evt_queue = xQueueCreate(10,sizeof(uint32_t));
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(BUTTON_GPIO,button_isr_handler,(void*)BUTTON_GPIO);
+
     xTaskCreate(handle_button,"handle_button",2048,NULL,10,NULL);
 }
 
 static void handle_button(void*pv)
 {
+    uint32_t gpio_num;
     static bool led_state = 1;
     static int last_button_state = 1;
     while(1){
-        int button_state = gpio_get_level(BUTTON_GPIO);
-        //Detect button press:High -> Low
-        if (last_button_state == 1 && button_state == 0){
-            led_state = !led_state;
-            led_set(led_state);
+        if(xQueueReceive(button_evt_queue,&gpio_num,portMAX_DELAY)){
+            int button_state = gpio_get_level(BUTTON_GPIO);
+            //Detect button press:High -> Low
+            if (last_button_state == 1 && button_state == 0){
+                led_state = !led_state;
+                led_set(led_state);
+            }
+            last_button_state = button_state;
+            //Debounce
+            //vTaskDelay(pdMS_TO_TICKS(50));
         }
-        last_button_state = button_state;
-        //Debounce
-        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
@@ -149,3 +167,4 @@ static void led_set(bool on)
     else
         printf("\nLED->ON\n");
 }
+
