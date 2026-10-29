@@ -119,7 +119,7 @@ static void handle_button(void*pv)
         if(xQueueReceive(button_evt_queue,&gpio_num,portMAX_DELAY)){
             int button_state = gpio_get_level(BUTTON_GPIO);
             //Detect button press:High -> Low
-            if (last_button_state == 1 && button_state == 0){
+            if (button_state == 0){
                 led_state = !led_state;
                 led_set(led_state);
             }
